@@ -51,33 +51,121 @@ export function registerCommands(
         }
       }
 
-      // If the conversation belongs to a different workspace, offer to open it
+      const shortTitle = convo ? convo.title : id.substring(0, 8);
+      vscode.window.setStatusBarMessage(`💬 Chat focused: "${shortTitle}" (ID copied to clipboard)`, 4000);
+
+      // Check if this conversation belongs to an external workspace folder
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      if (convo?.workspacePath && currentWorkspace && path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo.workspacePath).toLowerCase()) {
-        const choice = await vscode.window.showInformationMessage(
-          `Conversation "${convo.title}" was created in workspace: ${path.basename(convo.workspacePath)}`,
-          'Open Workspace',
-          'Continue Here'
-        );
-        if (choice === 'Open Workspace') {
-          try {
-            await vscode.commands.executeCommand('antigravity.openConversationWorkspaceQuickPick', {
-              cascadeId: id,
-              workspaceUris: [vscode.Uri.file(convo.workspacePath).toString()]
-            });
-            return;
-          } catch (err) {
-            console.error('[ChatOrganizer] Error switching workspace:', err);
-          }
-        }
+      const hasWorkspace = convo?.workspacePath && 
+        convo.workspacePath !== 'Scratch / Unassigned' && 
+        convo.workspacePath !== 'General / Direct Chat' &&
+        fs.existsSync(convo.workspacePath);
+
+      const isDifferentWorkspace = hasWorkspace && (
+        !currentWorkspace ||
+        path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo!.workspacePath!).toLowerCase()
+      );
+
+      const actions: string[] = ['🚀 Resume in Chat', '📄 View Transcript'];
+      if (isDifferentWorkspace) {
+        actions.unshift('📁 Open Workspace');
       }
 
-      const shortTitle = convo ? convo.title : id.substring(0, 8);
-      vscode.window.setStatusBarMessage(`💬 Agent Chat focused: "${shortTitle}" (ID copied to clipboard)`, 5000);
+      const message = isDifferentWorkspace
+        ? `Selected "${shortTitle}". Created in workspace: ${path.basename(convo!.workspacePath!)}.`
+        : `Selected "${shortTitle}". (Tip: In Cascade, click 🕒 Past Conversations or press Ctrl+K to load history)`;
+
+      const choice = await vscode.window.showInformationMessage(message, ...actions);
+
+      if (choice === '📁 Open Workspace' && convo) {
+        await vscode.commands.executeCommand('antigravityChatOrganizer.openWorkspace', convo);
+      } else if (choice === '🚀 Resume in Chat' && convo) {
+        await vscode.commands.executeCommand('antigravityChatOrganizer.resumeInChat', convo);
+      } else if (choice === '📄 View Transcript' && convo) {
+        await markdownExporter.openChat(convo);
+      }
     })
   );
 
-  // 1b. View Transcript as Markdown (explicit user action only)
+  // 1b. Resume in Agent Chat (Injects session context directly into Cascade input)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.resumeInChat', async (item?: ChatTreeItem | ConversationInfo) => {
+      let convo: ConversationInfo | undefined;
+      if (item instanceof ChatTreeItem) {
+        convo = item.conversation;
+      } else if (item && 'id' in item) {
+        convo = item;
+      }
+
+      if (!convo) {
+        vscode.window.showInformationMessage('Please select a conversation to resume.');
+        return;
+      }
+
+      // Ensure Cascade is open
+      try {
+        await vscode.commands.executeCommand('antigravity.openAgent');
+      } catch {
+        // ignore
+      }
+
+      let promptSnippet = convo.firstPrompt ? convo.firstPrompt.substring(0, 280).trim() : '';
+      if (promptSnippet) {
+        promptSnippet = promptSnippet.replace(/\r?\n/g, ' ');
+      }
+
+      let resumeText = `Resuming work from conversation "${convo.title}" (Session ID: ${convo.id}).`;
+      if (promptSnippet && promptSnippet !== '(No transcript recorded)') {
+        resumeText += `\nTopic: "${promptSnippet}"`;
+      }
+      if (convo.notes) {
+        resumeText += `\nNotes: "${convo.notes}"`;
+      }
+      resumeText += `\nPlease check our progress from this conversation and let's continue from where we left off.`;
+
+      try {
+        await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', resumeText);
+        vscode.window.setStatusBarMessage(`🚀 Context sent to Agent Chat for "${convo.title}"`, 5000);
+      } catch (err) {
+        // Fallback: copy to clipboard
+        await vscode.env.clipboard.writeText(resumeText);
+        vscode.window.showInformationMessage('Resume prompt copied to clipboard. Paste it into Cascade chat to continue.');
+      }
+    })
+  );
+
+  // 1c. Open Associated Workspace
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.openWorkspace', async (item?: ChatTreeItem | ConversationInfo) => {
+      let convo: ConversationInfo | undefined;
+      if (item instanceof ChatTreeItem) {
+        convo = item.conversation;
+      } else if (item && 'id' in item) {
+        convo = item;
+      }
+
+      if (!convo || !convo.workspacePath || convo.workspacePath === 'Scratch / Unassigned' || convo.workspacePath === 'General / Direct Chat') {
+        vscode.window.showInformationMessage('This conversation is not linked to a specific workspace directory.');
+        return;
+      }
+
+      if (!fs.existsSync(convo.workspacePath)) {
+        vscode.window.showWarningMessage(`Workspace path does not exist on disk: ${convo.workspacePath}`);
+        return;
+      }
+
+      try {
+        await vscode.commands.executeCommand('antigravity.openConversationWorkspaceQuickPick', {
+          cascadeId: convo.id,
+          workspaceUris: [vscode.Uri.file(convo.workspacePath).toString()]
+        });
+      } catch {
+        await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(convo.workspacePath), { forceNewWindow: true });
+      }
+    })
+  );
+
+  // 1d. View Transcript as Markdown (explicit user action only)
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.viewMarkdown', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
