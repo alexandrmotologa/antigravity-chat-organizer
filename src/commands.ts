@@ -67,23 +67,106 @@ export function registerCommands(
         path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo!.workspacePath!).toLowerCase()
       );
 
-      const actions: string[] = ['📄 View Transcript', '🆔 Copy ID'];
+      const actions: string[] = ['🚀 Smart Resume', '📄 View Transcript', '🆔 Copy ID'];
       if (isDifferentWorkspace) {
         actions.unshift('📁 Open Workspace');
       }
 
       const message = isDifferentWorkspace
         ? `Selected "${shortTitle}". Created in workspace: ${path.basename(convo!.workspacePath!)}.`
-        : `Selected "${shortTitle}". Title copied to clipboard — in Cascade, click 🕒 Past Conversations and press Ctrl+V to jump to this chat!`;
+        : `Selected "${shortTitle}". Title copied to clipboard for 🕒 Past Conversations. Or click "🚀 Smart Resume" to continue in a fresh agent session!`;
 
       const choice = await vscode.window.showInformationMessage(message, ...actions);
 
       if (choice === '📁 Open Workspace' && convo) {
         await vscode.commands.executeCommand('antigravityChatOrganizer.openWorkspace', convo);
+      } else if (choice === '🚀 Smart Resume' && convo) {
+        await vscode.commands.executeCommand('antigravityChatOrganizer.smartResume', convo);
       } else if (choice === '📄 View Transcript' && convo) {
         await markdownExporter.openChat(convo);
       } else if (choice === '🆔 Copy ID' && convo) {
         await vscode.commands.executeCommand('antigravityChatOrganizer.copyChatId', convo);
+      }
+    })
+  );
+
+  // 1b. Smart Resume (Continue conversation with fresh agent session using artifacts & context)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.smartResume', async (item?: ChatTreeItem | ConversationInfo) => {
+      let convo: ConversationInfo | undefined;
+      if (item instanceof ChatTreeItem) {
+        convo = item.conversation;
+      } else if (item && 'id' in item) {
+        convo = item;
+      }
+
+      if (!convo) {
+        vscode.window.showInformationMessage('Please select a conversation to resume.');
+        return;
+      }
+
+      // Ensure Cascade is open
+      try {
+        await vscode.commands.executeCommand('antigravity.openAgent');
+      } catch {
+        try {
+          await vscode.commands.executeCommand('antigravity.openChatView');
+        } catch {
+          // ignore
+        }
+      }
+
+      const brainConvoDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain', convo.id);
+      const planPath = path.join(brainConvoDir, 'implementation_plan.md');
+      const walkthroughPath = path.join(brainConvoDir, 'walkthrough.md');
+      const transcriptPath = path.join(brainConvoDir, '.system_generated', 'logs', 'transcript.jsonl');
+
+      const artifacts: string[] = [];
+      if (fs.existsSync(planPath)) {
+        artifacts.push(`- **Implementation Plan**: [implementation_plan.md](file:///${planPath.replace(/\\/g, '/')})`);
+      }
+      if (fs.existsSync(walkthroughPath)) {
+        artifacts.push(`- **Walkthrough / Progress**: [walkthrough.md](file:///${walkthroughPath.replace(/\\/g, '/')})`);
+      }
+
+      const artifactsBlock = artifacts.length > 0
+        ? `\n### Previous Project Artifacts:\n${artifacts.join('\n')}\n`
+        : '';
+
+      const notesBlock = convo.notes
+        ? `\n**User Notes from Previous Session**:\n> ${convo.notes}\n`
+        : '';
+
+      let promptSnippet = convo.firstPrompt ? convo.firstPrompt.substring(0, 200).trim() : '';
+      if (promptSnippet && promptSnippet !== '(No transcript recorded)') {
+        promptSnippet = promptSnippet.replace(/\r?\n/g, ' ');
+      }
+      const initialTopicBlock = promptSnippet && promptSnippet !== '(No transcript recorded)'
+        ? `\n- **Initial Request/Topic**: "${promptSnippet}"`
+        : '';
+
+      let resumePrompt = `I would like to continue our work from previous session:\n` +
+        `- **Title**: "${convo.title}"\n` +
+        `- **Previous Session ID**: \`${convo.id}\`\n` +
+        `- **Workspace**: ${convo.workspacePath || 'Current Workspace'}` +
+        `${initialTopicBlock}\n` +
+        `${notesBlock}` +
+        `${artifactsBlock}\n`;
+
+      if (fs.existsSync(transcriptPath)) {
+        resumePrompt += `- **Full Transcript Log**: [transcript.jsonl](file:///${transcriptPath.replace(/\\/g, '/')})\n\n`;
+      } else {
+        resumePrompt += `\n`;
+      }
+
+      resumePrompt += `Please inspect the artifacts and progress from the previous session, verify our current codebase state, and let's continue where we left off. What should we do next?`;
+
+      try {
+        await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', resumePrompt);
+        vscode.window.setStatusBarMessage(`🚀 Smart Resume context sent to Agent for "${convo.title}"`, 5000);
+      } catch (err) {
+        await vscode.env.clipboard.writeText(resumePrompt);
+        vscode.window.showInformationMessage('Smart Resume context copied to clipboard. Paste into Cascade chat to continue.');
       }
     })
   );

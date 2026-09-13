@@ -2,7 +2,7 @@
   "name": "antigravity-chat-organizer",
   "displayName": "Antigravity Chat Organizer",
   "description": "Organize, rename, pin, categorize into folders, drag-and-drop, export, and search agent chat conversations in Google Antigravity IDE.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "alexandrmotologa",
   "repository": {
     "type": "git",
@@ -82,6 +82,11 @@
       {
         "command": "antigravityChatOrganizer.focusChat",
         "title": "Open Chat in Cascade"
+      },
+      {
+        "command": "antigravityChatOrganizer.smartResume",
+        "title": "Smart Resume (Continue with Agent)",
+        "icon": "$(rocket)"
       },
       {
         "command": "antigravityChatOrganizer.renameChat",
@@ -193,9 +198,14 @@
           "group": "inline@2"
         },
         {
-          "command": "antigravityChatOrganizer.openWorkspace",
+          "command": "antigravityChatOrganizer.smartResume",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.openWorkspace",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@2"
         },
         {
           "command": "antigravityChatOrganizer.viewMarkdown",
