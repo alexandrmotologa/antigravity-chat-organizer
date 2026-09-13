@@ -1,0 +1,184 @@
+{
+  "name": "antigravity-chat-organizer",
+  "displayName": "Antigravity Chat Organizer",
+  "description": "Organize, rename, pin, categorize into folders, and search agent chat conversations in Google Antigravity IDE.",
+  "version": "0.1.0",
+  "publisher": "alexandrmotologa",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alexandrmotologa/antigravity-chat-organizer.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Productivity"
+  ],
+  "keywords": [
+    "antigravity",
+    "chat",
+    "history",
+    "organizer",
+    "cascade",
+    "gemini",
+    "pins",
+    "folders"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "antigravity-chat-organizer",
+          "title": "Chat Organizer",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "antigravity-chat-organizer": [
+        {
+          "id": "antigravity.chatOrganizerView",
+          "name": "Agent Conversations"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "antigravityChatOrganizer.refresh",
+        "title": "Refresh Chats",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "antigravityChatOrganizer.searchChats",
+        "title": "Search All Chats...",
+        "icon": "$(search)"
+      },
+      {
+        "command": "antigravityChatOrganizer.createFolder",
+        "title": "New Folder...",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "antigravityChatOrganizer.focusChat",
+        "title": "Open Chat in Cascade"
+      },
+      {
+        "command": "antigravityChatOrganizer.renameChat",
+        "title": "Rename Chat...",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "antigravityChatOrganizer.togglePin",
+        "title": "Pin / Unpin Chat",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "antigravityChatOrganizer.moveToFolder",
+        "title": "Move to Folder...",
+        "icon": "$(folder)"
+      },
+      {
+        "command": "antigravityChatOrganizer.removeFromFolder",
+        "title": "Remove from Folder",
+        "icon": "$(close)"
+      },
+      {
+        "command": "antigravityChatOrganizer.addNote",
+        "title": "Add / Edit Note...",
+        "icon": "$(note)"
+      },
+      {
+        "command": "antigravityChatOrganizer.copyChatId",
+        "title": "Copy Conversation ID",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "antigravityChatOrganizer.openTranscript",
+        "title": "Open Raw Transcript (JSONL)",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "antigravityChatOrganizer.deleteFolder",
+        "title": "Delete Folder",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "antigravityChatOrganizer.searchChats",
+          "when": "view == antigravity.chatOrganizerView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.createFolder",
+          "when": "view == antigravity.chatOrganizerView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "antigravityChatOrganizer.refresh",
+          "when": "view == antigravity.chatOrganizerView",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "antigravityChatOrganizer.togglePin",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "inline@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.renameChat",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "inline@2"
+        },
+        {
+          "command": "antigravityChatOrganizer.moveToFolder",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.removeFromFolder",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "antigravityChatOrganizer.addNote",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@3"
+        },
+        {
+          "command": "antigravityChatOrganizer.copyChatId",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "2_info@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.openTranscript",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "2_info@2"
+        },
+        {
+          "command": "antigravityChatOrganizer.deleteFolder",
+          "when": "view == antigravity.chatOrganizerView && viewItem == folderItem",
+          "group": "1_actions@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.5"
+  }
+}
