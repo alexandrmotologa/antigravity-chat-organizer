@@ -2,7 +2,7 @@
   "name": "antigravity-chat-organizer",
   "displayName": "Antigravity Chat Organizer",
   "description": "Organize, rename, pin, categorize into folders, drag-and-drop, export, and search agent chat conversations in Google Antigravity IDE.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "alexandrmotologa",
   "repository": {
     "type": "git",
@@ -114,6 +114,11 @@
         "icon": "$(note)"
       },
       {
+        "command": "antigravityChatOrganizer.viewMarkdown",
+        "title": "View Transcript (Markdown)",
+        "icon": "$(markdown)"
+      },
+      {
         "command": "antigravityChatOrganizer.exportMarkdown",
         "title": "Export to Markdown Document",
         "icon": "$(export)"
@@ -178,24 +183,29 @@
           "group": "inline@2"
         },
         {
-          "command": "antigravityChatOrganizer.exportMarkdown",
+          "command": "antigravityChatOrganizer.viewMarkdown",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@1"
         },
         {
-          "command": "antigravityChatOrganizer.moveToFolder",
+          "command": "antigravityChatOrganizer.exportMarkdown",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@2"
         },
         {
-          "command": "antigravityChatOrganizer.removeFromFolder",
+          "command": "antigravityChatOrganizer.moveToFolder",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@3"
         },
         {
-          "command": "antigravityChatOrganizer.addNote",
+          "command": "antigravityChatOrganizer.removeFromFolder",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@4"
+        },
+        {
+          "command": "antigravityChatOrganizer.addNote",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@5"
         },
         {
           "command": "antigravityChatOrganizer.copyChatId",

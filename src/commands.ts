@@ -40,35 +40,49 @@ export function registerCommands(
       // Copy ID to clipboard so it's always ready to paste or use
       await vscode.env.clipboard.writeText(id);
 
-      // Immediately open formatted dialogue transcript in editor tab
-      if (convo) {
-        try {
-          await markdownExporter.openChat(convo);
-        } catch (err) {
-          console.error('[ChatOrganizer] Error opening chat transcript:', err);
-        }
-      }
-
-      // Open Cascade chat panel in the sidebar
+      // Open Cascade chat panel in the sidebar so the user can continue talking with the agent
       try {
-        await vscode.commands.executeCommand('antigravity.openChatView');
+        await vscode.commands.executeCommand('antigravity.openAgent');
       } catch {
         try {
-          await vscode.commands.executeCommand('antigravity.openAgent');
+          await vscode.commands.executeCommand('antigravity.openChatView');
         } catch {
-          // Ignore if panel command fails
+          // Fallback ignore
         }
       }
 
-      // Try smartFocusConversation if supported by the host
-      try {
-        await vscode.commands.executeCommand('workbench.action.smartFocusConversation', id);
-      } catch {
-        // Ignored
+      // If the conversation belongs to a different workspace, offer to open it
+      const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (convo?.workspacePath && currentWorkspace && path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo.workspacePath).toLowerCase()) {
+        const choice = await vscode.window.showInformationMessage(
+          `Conversation "${convo.title}" was created in workspace: ${path.basename(convo.workspacePath)}`,
+          'Open Workspace',
+          'Continue Here'
+        );
+        if (choice === 'Open Workspace') {
+          try {
+            await vscode.commands.executeCommand('antigravity.openConversationWorkspaceQuickPick', {
+              cascadeId: id,
+              workspaceUris: [vscode.Uri.file(convo.workspacePath).toString()]
+            });
+            return;
+          } catch (err) {
+            console.error('[ChatOrganizer] Error switching workspace:', err);
+          }
+        }
       }
 
       const shortTitle = convo ? convo.title : id.substring(0, 8);
-      vscode.window.setStatusBarMessage(`Chat Organizer: "${shortTitle}" opened (ID copied)`, 4000);
+      vscode.window.setStatusBarMessage(`💬 Agent Chat focused: "${shortTitle}" (ID copied to clipboard)`, 5000);
+    })
+  );
+
+  // 1b. View Transcript as Markdown (explicit user action only)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.viewMarkdown', async (item?: ChatTreeItem) => {
+      const convo = item?.conversation;
+      if (!convo) return;
+      await markdownExporter.openChat(convo);
     })
   );
 
