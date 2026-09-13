@@ -22,10 +22,14 @@ export function registerCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.focusChat', async (chatId?: string | ChatTreeItem) => {
       let id: string | undefined;
+      let convo: ConversationInfo | undefined;
+
       if (typeof chatId === 'string') {
         id = chatId;
+        convo = treeProvider.getChats().find(c => c.id === id);
       } else if (chatId instanceof ChatTreeItem && chatId.conversation) {
         id = chatId.conversation.id;
+        convo = chatId.conversation;
       }
 
       if (!id) {
@@ -33,11 +37,45 @@ export function registerCommands(
         return;
       }
 
+      // Copy ID to clipboard so it's always ready to paste or use
+      await vscode.env.clipboard.writeText(id);
+
+      // Open Cascade chat panel
+      try {
+        await vscode.commands.executeCommand('antigravity.openChatView');
+      } catch {
+        try {
+          await vscode.commands.executeCommand('antigravity.openAgent');
+        } catch {
+          // Ignore if panel command fails
+        }
+      }
+
+      // Try smartFocusConversation if supported by the host
       try {
         await vscode.commands.executeCommand('workbench.action.smartFocusConversation', id);
-      } catch (err) {
-        console.error('[ChatOrganizer] Error focusing conversation:', err);
-        vscode.window.showErrorMessage(`Failed to switch to conversation: ${err}`);
+      } catch {
+        // Expected in Antigravity IDE (VS Code) where this command is not registered
+      }
+
+      const shortTitle = convo ? convo.title : id.substring(0, 8);
+      vscode.window.setStatusBarMessage(`Chat Organizer: "${shortTitle}" selected (ID copied)`, 5000);
+
+      // Give quick actions to open picker or view formatted transcript
+      const choice = await vscode.window.showInformationMessage(
+        `Selected "${shortTitle}". (Conversation ID copied to clipboard)`,
+        'Open Conversation Switcher',
+        'View Full Transcript'
+      );
+
+      if (choice === 'Open Conversation Switcher') {
+        try {
+          await vscode.commands.executeCommand('conversationPicker.showConversationPicker');
+        } catch (e) {
+          vscode.window.showWarningMessage('Could not open conversation picker.');
+        }
+      } else if (choice === 'View Full Transcript' && convo) {
+        await markdownExporter.exportChat(convo);
       }
     })
   );
