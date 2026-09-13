@@ -37,8 +37,9 @@ export function registerCommands(
         return;
       }
 
-      // Copy ID to clipboard so it's always ready to paste or use
-      await vscode.env.clipboard.writeText(id);
+      // Copy the original/searchable title so the user can paste it directly into Past Conversations
+      const searchTitle = convo ? (convo.originalTitle || convo.title) : id;
+      await vscode.env.clipboard.writeText(searchTitle);
 
       // Open Cascade chat panel in the sidebar so the user can continue talking with the agent
       try {
@@ -52,7 +53,7 @@ export function registerCommands(
       }
 
       const shortTitle = convo ? convo.title : id.substring(0, 8);
-      vscode.window.setStatusBarMessage(`💬 Chat focused: "${shortTitle}" (ID copied to clipboard)`, 4000);
+      vscode.window.setStatusBarMessage(`📋 Copied title "${searchTitle}" to clipboard for Past Conversations search`, 5000);
 
       // Check if this conversation belongs to an external workspace folder
       const currentWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -66,14 +67,14 @@ export function registerCommands(
         path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo!.workspacePath!).toLowerCase()
       );
 
-      const actions: string[] = ['📄 View Transcript'];
+      const actions: string[] = ['📄 View Transcript', '🆔 Copy ID'];
       if (isDifferentWorkspace) {
         actions.unshift('📁 Open Workspace');
       }
 
       const message = isDifferentWorkspace
         ? `Selected "${shortTitle}". Created in workspace: ${path.basename(convo!.workspacePath!)}.`
-        : `Selected "${shortTitle}". (Tip: In Cascade, click 🕒 Past Conversations or press Ctrl+K to select history)`;
+        : `Selected "${shortTitle}". Title copied to clipboard — in Cascade, click 🕒 Past Conversations and press Ctrl+V to jump to this chat!`;
 
       const choice = await vscode.window.showInformationMessage(message, ...actions);
 
@@ -81,6 +82,8 @@ export function registerCommands(
         await vscode.commands.executeCommand('antigravityChatOrganizer.openWorkspace', convo);
       } else if (choice === '📄 View Transcript' && convo) {
         await markdownExporter.openChat(convo);
+      } else if (choice === '🆔 Copy ID' && convo) {
+        await vscode.commands.executeCommand('antigravityChatOrganizer.copyChatId', convo);
       }
     })
   );
@@ -349,10 +352,31 @@ export function registerCommands(
     })
   );
 
-  // 12. Copy Chat ID
+  // 12. Copy Chat Title (For pasting into Past Conversations search)
   context.subscriptions.push(
-    vscode.commands.registerCommand('antigravityChatOrganizer.copyChatId', async (item?: ChatTreeItem) => {
-      const convo = item?.conversation;
+    vscode.commands.registerCommand('antigravityChatOrganizer.copyChatTitle', async (item?: ChatTreeItem | ConversationInfo) => {
+      let convo: ConversationInfo | undefined;
+      if (item instanceof ChatTreeItem) {
+        convo = item.conversation;
+      } else if (item && 'id' in item) {
+        convo = item as ConversationInfo;
+      }
+      if (!convo) return;
+      const titleToCopy = convo.originalTitle || convo.title;
+      await vscode.env.clipboard.writeText(titleToCopy);
+      vscode.window.showInformationMessage(`📋 Copied title "${titleToCopy}". Paste into 🕒 Past Conversations to open!`);
+    })
+  );
+
+  // 12b. Copy Chat ID
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.copyChatId', async (item?: ChatTreeItem | ConversationInfo) => {
+      let convo: ConversationInfo | undefined;
+      if (item instanceof ChatTreeItem) {
+        convo = item.conversation;
+      } else if (item && 'id' in item) {
+        convo = item as ConversationInfo;
+      }
       if (!convo) return;
       await vscode.env.clipboard.writeText(convo.id);
       vscode.window.showInformationMessage(`Copied Conversation ID: ${convo.id}`);

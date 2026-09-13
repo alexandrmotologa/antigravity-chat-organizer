@@ -21,6 +21,18 @@ export class ConversationScanner {
 
   public scanAll(): ConversationInfo[] {
     const protoTitles = this.parseProtoSummaries();
+    const vscdbTitles = this.parseStateVscdbSummaries();
+
+    // Merge: vscdb has the exact titles shown by Antigravity IDE Cascade Past Conversations
+    const allTitles = new Map<string, { title: string; workspace?: string }>(protoTitles);
+    for (const [id, info] of vscdbTitles) {
+      const existing = allTitles.get(id);
+      allTitles.set(id, {
+        title: info.title,
+        workspace: existing?.workspace || info.workspace
+      });
+    }
+
     const conversationMap = new Map<string, ConversationInfo>();
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,7 +45,7 @@ export class ConversationScanner {
           if (entry.isDirectory() && uuidRegex.test(entry.name)) {
             const id = entry.name.toLowerCase();
             const folderPath = path.join(this.brainDir, entry.name);
-            const convoInfo = this.extractFromBrain(id, folderPath, protoTitles.get(id));
+            const convoInfo = this.extractFromBrain(id, folderPath, allTitles.get(id));
             conversationMap.set(id, convoInfo);
           }
         }
@@ -54,15 +66,15 @@ export class ConversationScanner {
               // Not found in brain, but exists in conversations
               const filePath = path.join(this.convosDir, file);
               const stats = fs.statSync(filePath);
-              const protoInfo = protoTitles.get(id);
+              const titleInfo = allTitles.get(id);
 
               const meta = this.metadataStore.getChatMetadata(id);
-              const title = meta.customTitle || protoInfo?.title || `Conversation ${id.substring(0, 8)}`;
+              const title = meta.customTitle || titleInfo?.title || `Conversation ${id.substring(0, 8)}`;
 
               conversationMap.set(id, {
                 id,
                 title,
-                originalTitle: protoInfo?.title || title,
+                originalTitle: titleInfo?.title || title,
                 customTitle: meta.customTitle,
                 firstPrompt: '(No transcript recorded)',
                 lastModified: stats.mtimeMs,
@@ -72,7 +84,7 @@ export class ConversationScanner {
                 folder: meta.folder,
                 tags: meta.tags || [],
                 notes: meta.notes,
-                workspacePath: protoInfo?.workspace || 'Scratch / Unassigned',
+                workspacePath: titleInfo?.workspace || 'Scratch / Unassigned',
                 isScratch: true,
                 hasTranscript: false
               });
@@ -158,14 +170,18 @@ export class ConversationScanner {
     let isScratch = false;
 
     if (!workspace) {
-      if (firstPrompt.includes('scratch') || firstPrompt.includes('outside-of-project')) {
+      // Try to determine workspace from transcript if not in proto/vscdb
+      if (firstPrompt.includes('.gemini\\antigravity-ide\\scratch') || folderPath.includes('scratch')) {
         isScratch = true;
-        workspace = 'Scratch';
+        workspace = 'Scratch / Unassigned';
       } else {
-        workspace = 'General / Direct Chat';
+        const wsMatch = firstPrompt.match(/([a-zA-Z]:\\[^\s"']+)/);
+        if (wsMatch) {
+          workspace = path.dirname(wsMatch[1]);
+        } else {
+          workspace = 'General / Direct Chat';
+        }
       }
-    } else if (workspace.toLowerCase().includes('scratch')) {
-      isScratch = true;
     }
 
     return {
@@ -173,7 +189,7 @@ export class ConversationScanner {
       title,
       originalTitle,
       customTitle: meta.customTitle,
-      firstPrompt: firstPrompt || '(Empty or initial conversation)',
+      firstPrompt: firstPrompt || '(No transcript recorded)',
       lastModified,
       createdAt,
       messageCount,
@@ -226,6 +242,70 @@ export class ConversationScanner {
       }
     } catch (err) {
       console.error('[ChatOrganizer] Error parsing proto summaries:', err);
+    }
+
+    return map;
+  }
+
+  private parseStateVscdbSummaries(): Map<string, { title: string; workspace?: string }> {
+    const map = new Map<string, { title: string; workspace?: string }>();
+    const appData = process.env.APPDATA || (process.platform === 'darwin' ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config'));
+    const dbPath = path.join(appData, 'Antigravity IDE', 'User', 'globalStorage', 'state.vscdb');
+    if (!fs.existsSync(dbPath)) {
+      return map;
+    }
+
+    let b64Val = '';
+    try {
+      // 1. Try native Node sqlite if available
+      // @ts-ignore
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(dbPath, { readOnly: true });
+      const row = db.prepare('SELECT value FROM ItemTable WHERE key = ?').get('antigravityUnifiedStateSync.trajectorySummaries') as { value?: string } | undefined;
+      db.close();
+      if (row && row.value) {
+        b64Val = row.value;
+      }
+    } catch {
+      // 2. Fallback: query via python if available
+      try {
+        const cp = require('child_process');
+        const script = `import sqlite3; con=sqlite3.connect(r'${dbPath}'); cur=con.cursor(); cur.execute("SELECT value FROM ItemTable WHERE key='antigravityUnifiedStateSync.trajectorySummaries'"); row=cur.fetchone(); print(row[0] if row else "")`;
+        b64Val = cp.execSync(`python -c "${script}"`, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }).trim();
+      } catch {
+        // Fallback ignore
+      }
+    }
+
+    if (!b64Val) {
+      return map;
+    }
+
+    try {
+      const raw = Buffer.from(b64Val, 'base64');
+      const uuidRegex = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/g;
+      const text = raw.toString('latin1');
+      let m: RegExpExecArray | null;
+      while ((m = uuidRegex.exec(text)) !== null) {
+        const id = m[1].toLowerCase();
+        const start = m.index + m[0].length;
+        const sub = raw.subarray(start, start + 350).toString('latin1');
+        const bMatch = sub.match(/C[A-Za-z0-9+/=]{10,120}/);
+        if (bMatch) {
+          try {
+            const dec = Buffer.from(bMatch[0], 'base64');
+            if (dec[0] === 0x0a) {
+              const len = dec[1];
+              const title = dec.subarray(2, 2 + len).toString('utf8');
+              if (title && title.length > 1 && !map.has(id)) {
+                map.set(id, { title });
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.error('[ChatOrganizer] Error parsing state.vscdb summaries:', err);
     }
 
     return map;

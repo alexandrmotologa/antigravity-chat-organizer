@@ -2,7 +2,7 @@
   "name": "antigravity-chat-organizer",
   "displayName": "Antigravity Chat Organizer",
   "description": "Organize, rename, pin, categorize into folders, drag-and-drop, export, and search agent chat conversations in Google Antigravity IDE.",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "publisher": "alexandrmotologa",
   "repository": {
     "type": "git",
@@ -124,6 +124,11 @@
         "icon": "$(export)"
       },
       {
+        "command": "antigravityChatOrganizer.copyChatTitle",
+        "title": "Copy Conversation Title (Search Term)",
+        "icon": "$(search)"
+      },
+      {
         "command": "antigravityChatOrganizer.copyChatId",
         "title": "Copy Conversation ID",
         "icon": "$(copy)"
@@ -218,14 +223,19 @@
           "group": "1_actions@7"
         },
         {
-          "command": "antigravityChatOrganizer.copyChatId",
+          "command": "antigravityChatOrganizer.copyChatTitle",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "2_info@1"
         },
         {
-          "command": "antigravityChatOrganizer.openTranscript",
+          "command": "antigravityChatOrganizer.copyChatId",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "2_info@2"
+        },
+        {
+          "command": "antigravityChatOrganizer.openTranscript",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "2_info@3"
         },
         {
           "command": "antigravityChatOrganizer.setFolderIcon",
