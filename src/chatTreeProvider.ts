@@ -85,6 +85,49 @@ export class ChatTreeItem extends vscode.TreeItem {
   }
 }
 
+export class ChatDragAndDropController implements vscode.TreeDragAndDropController<ChatTreeItem> {
+  dropMimeTypes = ['application/vnd.code.tree.antigravityChatOrganizer'];
+  dragMimeTypes = ['application/vnd.code.tree.antigravityChatOrganizer'];
+
+  private metadataStore: MetadataStore;
+  private treeProvider: ChatTreeProvider;
+
+  constructor(metadataStore: MetadataStore, treeProvider: ChatTreeProvider) {
+    this.metadataStore = metadataStore;
+    this.treeProvider = treeProvider;
+  }
+
+  handleDrag(source: readonly ChatTreeItem[], treeDataTransfer: vscode.DataTransfer): void {
+    const chatIds = source.filter(s => s.conversation).map(s => s.conversation!.id);
+    if (chatIds.length > 0) {
+      treeDataTransfer.set(
+        'application/vnd.code.tree.antigravityChatOrganizer',
+        new vscode.DataTransferItem(chatIds)
+      );
+    }
+  }
+
+  handleDrop(target: ChatTreeItem | undefined, sources: vscode.DataTransfer): void {
+    const transferItem = sources.get('application/vnd.code.tree.antigravityChatOrganizer');
+    if (!transferItem) return;
+
+    const chatIds = transferItem.value as string[];
+    let targetFolder: string | undefined = undefined;
+
+    if (target?.folderName) {
+      targetFolder = target.folderName;
+    }
+
+    for (const id of chatIds) {
+      this.metadataStore.setFolder(id, targetFolder);
+    }
+
+    this.treeProvider.refresh();
+    const folderName = targetFolder ? `"${targetFolder}"` : 'Uncategorized';
+    vscode.window.showInformationMessage(`Moved ${chatIds.length} chat(s) to ${folderName}`);
+  }
+}
+
 export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<ChatTreeItem | undefined | null | void> =
     new vscode.EventEmitter<ChatTreeItem | undefined | null | void>();
@@ -112,6 +155,29 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
     return this.cachedChats;
   }
 
+  private filterByWorkspace(chats: ConversationInfo[]): ConversationInfo[] {
+    if (!this.metadataStore.isWorkspaceFilterActive()) {
+      return chats;
+    }
+
+    const workspaces = vscode.workspace.workspaceFolders;
+    if (!workspaces || workspaces.length === 0) {
+      return chats;
+    }
+
+    const currentPaths = workspaces.map(w => w.uri.fsPath.toLowerCase().replace(/\\/g, '/'));
+    const folderNames = workspaces.map(w => w.name.toLowerCase());
+
+    return chats.filter(c => {
+      if (!c.workspacePath) return false;
+      const cWs = c.workspacePath.toLowerCase().replace(/\\/g, '/');
+      return (
+        currentPaths.some(cp => cWs.includes(cp) || cp.includes(cWs)) ||
+        folderNames.some(fn => cWs.includes(fn) || c.title.toLowerCase().includes(fn))
+      );
+    });
+  }
+
   getTreeItem(element: ChatTreeItem): vscode.TreeItem {
     return element;
   }
@@ -121,12 +187,32 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
       this.cachedChats = this.scanner.scanAll();
     }
 
-    const chats = this.cachedChats;
+    const allChats = this.cachedChats;
+    const chats = this.filterByWorkspace(allChats);
     const folders = this.metadataStore.getFolders();
+    const isFiltered = this.metadataStore.isWorkspaceFilterActive();
 
     // Root level
     if (!element) {
       const items: ChatTreeItem[] = [];
+
+      // Filter status indicator if active
+      if (isFiltered) {
+        const filterStatusItem = new ChatTreeItem(
+          `🔍 Filter: Current Workspace (${chats.length}/${allChats.length})`,
+          vscode.TreeItemCollapsibleState.None,
+          'category',
+          undefined,
+          undefined,
+          'filter-banner'
+        );
+        filterStatusItem.iconPath = new vscode.ThemeIcon('filter');
+        filterStatusItem.command = {
+          command: 'antigravityChatOrganizer.toggleWorkspaceFilter',
+          title: 'Toggle Filter'
+        };
+        items.push(filterStatusItem);
+      }
 
       // 1. Pinned Chats category (if any)
       const pinnedChats = chats.filter(c => c.isPinned);
@@ -146,8 +232,10 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
       // 2. Folders
       for (const f of folders) {
         const count = chats.filter(c => c.folder === f).length;
+        const emoji = this.metadataStore.getFolderEmoji(f);
+        const folderLabel = emoji ? `${emoji} ${f}` : `📁 ${f}`;
         const folderItem = new ChatTreeItem(
-          `📁 ${f}`,
+          folderLabel,
           vscode.TreeItemCollapsibleState.Collapsed,
           'folder',
           undefined,

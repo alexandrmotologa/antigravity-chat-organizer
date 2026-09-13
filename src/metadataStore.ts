@@ -1,11 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { ChatMetadata, OrganizerMetadata } from './types';
+import { ChatMetadata, OrganizerMetadata, FolderConfig } from './types';
 
 export class MetadataStore {
   private filePath: string;
   private metadata: OrganizerMetadata;
+  private workspaceFilterActive = false;
 
   constructor() {
     const geminiDir = path.join(os.homedir(), '.gemini', 'antigravity-ide');
@@ -23,8 +24,9 @@ export class MetadataStore {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         const data = JSON.parse(raw);
         return {
-          version: data.version || 1,
+          version: data.version || 2,
           folders: Array.isArray(data.folders) ? data.folders : [],
+          folderConfigs: data.folderConfigs || {},
           conversations: data.conversations || {}
         };
       }
@@ -32,8 +34,9 @@ export class MetadataStore {
       console.error('[ChatOrganizer] Error loading metadata:', e);
     }
     return {
-      version: 1,
+      version: 2,
       folders: [],
+      folderConfigs: {},
       conversations: {}
     };
   }
@@ -105,23 +108,56 @@ export class MetadataStore {
     return this.metadata.folders;
   }
 
-  public addFolder(name: string): void {
+  public addFolder(name: string, emoji?: string): void {
     const trimmed = name.trim();
     if (trimmed && !this.metadata.folders.includes(trimmed)) {
       this.metadata.folders.push(trimmed);
       this.metadata.folders.sort((a, b) => a.localeCompare(b));
-      this.save();
     }
+    if (!this.metadata.folderConfigs) {
+      this.metadata.folderConfigs = {};
+    }
+    if (emoji) {
+      this.metadata.folderConfigs[trimmed] = { name: trimmed, emoji };
+    }
+    this.save();
+  }
+
+  public setFolderEmoji(folder: string, emoji?: string): void {
+    if (!this.metadata.folderConfigs) {
+      this.metadata.folderConfigs = {};
+    }
+    if (emoji && emoji.trim()) {
+      this.metadata.folderConfigs[folder] = { name: folder, emoji: emoji.trim() };
+    } else {
+      delete this.metadata.folderConfigs[folder];
+    }
+    this.save();
+  }
+
+  public getFolderEmoji(folder: string): string {
+    return this.metadata.folderConfigs?.[folder]?.emoji || '';
   }
 
   public deleteFolder(name: string): void {
     this.metadata.folders = this.metadata.folders.filter(f => f !== name);
-    // Unset folder for chats that were inside it
+    if (this.metadata.folderConfigs) {
+      delete this.metadata.folderConfigs[name];
+    }
     for (const id in this.metadata.conversations) {
       if (this.metadata.conversations[id].folder === name) {
         delete this.metadata.conversations[id].folder;
       }
     }
     this.save();
+  }
+
+  public isWorkspaceFilterActive(): boolean {
+    return this.workspaceFilterActive;
+  }
+
+  public toggleWorkspaceFilter(): boolean {
+    this.workspaceFilterActive = !this.workspaceFilterActive;
+    return this.workspaceFilterActive;
   }
 }

@@ -1,81 +1,101 @@
-# Antigravity Chat Organizer 🚀
+# Antigravity Chat Organizer 🚀 (v0.2.0)
 
-A dedicated VS Code & Antigravity IDE extension to **organize, rename, pin, categorize into folders, and search** all your agent conversations in Google Antigravity.
+A powerful VS Code & Antigravity IDE extension to **organize, drag-and-drop, pin, categorize into folders, export, and deep search** all your agent conversations in Google Antigravity.
 
 ---
 
 ## ✨ Features
 
-- **📂 Folders & Categories**: Create custom folders (e.g. *Diskwatch*, *Telegram Bots*, *Architecture*, *Archive*) and sort your past chats neatly.
-- **📌 Pin to Top**: Keep critical sessions right at the top for instant access.
-- **✏️ Custom Renaming**: Give any conversation a meaningful, human-friendly title that won't get lost or overwritten.
-- **🔍 Universal Discovery (100% of Chats)**:
-  - Finds **all** chats: repository projects, ad-hoc scratch conversations, and non-workspace dialogues.
-  - Automatically parses original titles and prompts.
-- **⚡ 1-Click Native Focus**: Clicking any conversation in the tree immediately opens and focuses that exact session in the native Antigravity Cascade chat!
-- **📝 Takeaway Notes**: Attach quick summary notes or architectural decisions to any conversation.
-- **🔎 Instant Fuzzy Search**: Search across titles, user prompts, tags, and folders with a quick keyboard shortcut.
-- **🔄 Real-Time Sync**: Automatically reflects new conversations as you chat with your agents.
+- **🖱️ Native Drag & Drop**:
+  - Drag and drop conversations directly into folders in the Activity Bar tree view.
+- **🎯 Current Workspace Filter**:
+  - 1-Click toggle (`$(filter)`) to display only conversations belonging to the active project workspace, or all 360+ global chats.
+- **📂 Custom Folders & Emojis**:
+  - Create categorized folders (e.g., 🟢 *Active*, 📦 *Archive*, 🐞 *Bugfixes*, 💡 *Ideas*, 🧪 *Scratch*).
+  - Customize folder icons with preset badges or custom emojis.
+- **📌 Pin to Top**:
+  - Keep your most important sessions permanently anchored at the top.
+- **✏️ Custom Renaming**:
+  - Rename auto-generated titles to human-friendly names that persist across sessions.
+- **🔎 Deep Full-Text Transcript Search**:
+  - Fast search across all historical `transcript.jsonl` files for code snippets, error messages, terminal logs, or past questions with highlighted contextual preview snippets.
+- **📑 Project Plans & Artifacts Explorer**:
+  - Dedicated companion view in the sidebar listing all `implementation_plan.md` and `walkthrough.md` files ever created across all sessions. Click any artifact to open it directly!
+- **📄 Export to Markdown**:
+  - Convert any chat session into clean, formatted Markdown document with 1-click. Ready to share or save to disk.
+- **⚡ 1-Click Native Focus**:
+  - Clicking any conversation immediately opens and loads that conversation in Antigravity's Cascade chat panel.
+- **📝 Takeaway Notes**:
+  - Attach summary notes or key architectural decisions to each chat.
+- **🔄 Real-Time Sync**:
+  - File watcher detects newly started conversations or prompt turns automatically.
 
 ---
 
-## 📸 Overview
+## 📸 Sidebar Structure
 
 ```text
 CHAT ORGANIZER (Activity Bar)
 ├── 📌 Pinned Chats (2)
 │   ├── Diskwatch - Memory Leak Fix (Today, 14:03)
 │   └── Architecture Guidelines (Sep 10)
-├── 📁 Telegram Bots (5)
-│   ├── Bot Father Webhook Setup
-│   └── Payment Gateway Flow
-├── 📁 Infrastructure & DevOps (3)
-│   └── Docker Compose & SSL Certs
-└── 💬 Recent / All Chats (285)
+├── 🟢 Active Projects (3)
+│   └── PayGate TMA Auth
+├── 📦 Archive (12)
+│   └── Old Setup Notes
+└── 💬 Recent / All Chats (340)
     ├── Telegram Mini App Ideas [Scratch]
     └── Fixing Duplicate Code
+
+PROJECT PLANS & ARTIFACTS (View)
+├── 📋 Implementation Plans (45)
+│   └── Antigravity Chat Organizer Plan
+└── ✅ Walkthroughs & Reports (42)
+    └── Diskwatch Overview Walkthrough
 ```
 
 ---
 
 ## 🛠️ Installation
 
-### Option 1: Install VSIX directly in Antigravity IDE
-1. Download or build the `.vsix` file:
+### Option 1: Install VSIX in Antigravity IDE
+1. Package the extension:
    ```bash
    npm run compile
    npx @vscode/vsce package
    ```
-2. Open Antigravity IDE.
-3. Open Extensions (`Ctrl+Shift+X`), click `...` (Views and More Actions) -> **Install from VSIX...**, and select `antigravity-chat-organizer-0.1.0.vsix`.
+2. Install via CLI or IDE:
+   ```bash
+   antigravity-ide --install-extension antigravity-chat-organizer-0.2.0.vsix
+   ```
 
 ### Option 2: Development Mode
 1. Clone this repository:
    ```bash
    git clone https://github.com/alexandrmotologa/antigravity-chat-organizer.git
    cd antigravity-chat-organizer
-   ```
-2. Install dependencies:
-   ```bash
    npm install
    npm run compile
    ```
-3. Press `F5` inside VS Code / Antigravity IDE to launch an Extension Development Host window.
+2. Open in Antigravity IDE / VS Code and press `F5` to launch Extension Development Host.
 
 ---
 
-## 🎯 Commands
+## 🎯 Commands & Shortcuts
 
-| Command | Description |
+| Action | How to Trigger |
 | :--- | :--- |
-| `Search All Chats...` | Fast fuzzy search across all past conversations and prompts |
-| `New Folder...` | Create a new custom organization folder |
-| `Rename Chat...` | Set a custom name for the selected conversation |
-| `Pin / Unpin Chat` | Pin or unpin the session to the top section |
-| `Move to Folder...` | Assign a chat to a folder |
-| `Add / Edit Note...` | Attach a quick takeaway note |
-| `Copy Conversation ID` | Copy the UUID to clipboard |
-| `Open Raw Transcript` | Inspect the raw JSONL transcript file |
+| **Deep Full-Text Search** | Click `$(search-fuzzy)` in view header or run `Deep Full-Text Search in Transcripts...` |
+| **Filter by Workspace** | Click `$(filter)` in view header to toggle between Current Project vs All Chats |
+| **Drag and Drop** | Grab any chat with your mouse and drop it into a folder |
+| **Set Folder Emoji** | Right-click folder -> `Set Folder Emoji / Icon...` |
+| **Export to Markdown** | Right-click chat -> `Export to Markdown Document` |
+| **Quick Search Titles** | Click `$(search)` in view header |
+| **Rename Chat** | Hover chat -> click `$(edit)` or right-click -> `Rename Chat...` |
+| **Pin / Unpin** | Hover chat -> click `$(pin)` or right-click -> `Pin / Unpin Chat` |
+| **Move to Folder** | Right-click chat -> `Move to Folder...` |
+| **Add / Edit Note** | Right-click chat -> `Add / Edit Note...` |
+| **Open Artifact** | Click any plan or walkthrough in the **Project Plans & Artifacts** view |
 
 ---
 

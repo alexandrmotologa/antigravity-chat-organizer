@@ -5,12 +5,19 @@ import * as os from 'os';
 import { ChatTreeItem, ChatTreeProvider } from './chatTreeProvider';
 import { MetadataStore } from './metadataStore';
 import { ConversationInfo } from './types';
+import { DeepSearchEngine } from './deepSearch';
+import { MarkdownExporter } from './markdownExporter';
+import { ArtifactsProvider } from './artifactsProvider';
 
 export function registerCommands(
   context: vscode.ExtensionContext,
   treeProvider: ChatTreeProvider,
-  metadataStore: MetadataStore
+  metadataStore: MetadataStore,
+  artifactsProvider?: ArtifactsProvider
 ): void {
+  const deepSearchEngine = new DeepSearchEngine();
+  const markdownExporter = new MarkdownExporter();
+
   // 1. Focus / Open Chat in Cascade
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.focusChat', async (chatId?: string | ChatTreeItem) => {
@@ -39,10 +46,26 @@ export function registerCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.refresh', () => {
       treeProvider.refresh();
+      if (artifactsProvider) {
+        artifactsProvider.refresh();
+      }
     })
   );
 
-  // 3. Rename Chat
+  // 3. Toggle Workspace Filter
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.toggleWorkspaceFilter', () => {
+      const active = metadataStore.toggleWorkspaceFilter();
+      treeProvider.refresh();
+      vscode.window.showInformationMessage(
+        active
+          ? '🔍 Filter active: Showing only chats for current project workspace.'
+          : '🌐 Filter cleared: Showing all global conversations.'
+      );
+    })
+  );
+
+  // 4. Rename Chat
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.renameChat', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
@@ -66,13 +89,11 @@ export function registerCommands(
     })
   );
 
-  // 4. Toggle Pin
+  // 5. Toggle Pin
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.togglePin', (item?: ChatTreeItem) => {
       const convo = item?.conversation;
-      if (!convo) {
-        return;
-      }
+      if (!convo) return;
 
       const isPinnedNow = metadataStore.togglePin(convo.id);
       treeProvider.refresh();
@@ -82,7 +103,7 @@ export function registerCommands(
     })
   );
 
-  // 5. Create Folder
+  // 6. Create Folder
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.createFolder', async () => {
       const folderName = await vscode.window.showInputBox({
@@ -99,13 +120,11 @@ export function registerCommands(
     })
   );
 
-  // 6. Move to Folder
+  // 7. Move to Folder
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.moveToFolder', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
-      if (!convo) {
-        return;
-      }
+      if (!convo) return;
 
       const existingFolders = metadataStore.getFolders();
       const options: vscode.QuickPickItem[] = [
@@ -152,7 +171,7 @@ export function registerCommands(
     })
   );
 
-  // 7. Remove from Folder
+  // 8. Remove from Folder
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.removeFromFolder', (item?: ChatTreeItem) => {
       const convo = item?.conversation;
@@ -163,7 +182,7 @@ export function registerCommands(
     })
   );
 
-  // 8. Delete Folder
+  // 9. Delete Folder
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.deleteFolder', async (item?: ChatTreeItem) => {
       if (!item?.folderName) return;
@@ -183,7 +202,51 @@ export function registerCommands(
     })
   );
 
-  // 9. Add / Edit Note
+  // 10. Set Folder Emoji / Icon
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.setFolderIcon', async (item?: ChatTreeItem) => {
+      if (!item?.folderName) return;
+      const folderName = item.folderName;
+      const currentEmoji = metadataStore.getFolderEmoji(folderName);
+
+      const presets: vscode.QuickPickItem[] = [
+        { label: '🟢 Active / In Progress' },
+        { label: '📦 Archive' },
+        { label: '🐞 Bugfixes & Issues' },
+        { label: '🚀 Releases & Deployments' },
+        { label: '🧪 Experimental / Scratch' },
+        { label: '💡 Ideas & Architecture' },
+        { label: '📚 Documentation & Notes' },
+        { label: '✏️ Custom Emoji...' },
+        { label: '❌ Remove Icon' }
+      ];
+
+      const selected = await vscode.window.showQuickPick(presets, {
+        title: `Choose Icon for "${folderName}"`
+      });
+
+      if (!selected) return;
+
+      let emoji = '';
+      if (selected.label === '❌ Remove Icon') {
+        emoji = '';
+      } else if (selected.label === '✏️ Custom Emoji...') {
+        const input = await vscode.window.showInputBox({
+          title: 'Custom Emoji',
+          prompt: 'Enter an emoji or symbol character:',
+          value: currentEmoji
+        });
+        if (input !== undefined) emoji = input.trim();
+      } else {
+        emoji = selected.label.split(' ')[0];
+      }
+
+      metadataStore.setFolderEmoji(folderName, emoji || undefined);
+      treeProvider.refresh();
+    })
+  );
+
+  // 11. Add / Edit Note
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.addNote', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
@@ -203,7 +266,7 @@ export function registerCommands(
     })
   );
 
-  // 10. Copy Chat ID
+  // 12. Copy Chat ID
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.copyChatId', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
@@ -213,7 +276,7 @@ export function registerCommands(
     })
   );
 
-  // 11. Open Transcript (JSONL)
+  // 13. Open Transcript (JSONL)
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.openTranscript', async (item?: ChatTreeItem) => {
       const convo = item?.conversation;
@@ -239,7 +302,28 @@ export function registerCommands(
     })
   );
 
-  // 12. Search All Chats
+  // 14. Export to Markdown
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.exportMarkdown', async (item?: ChatTreeItem) => {
+      const convo = item?.conversation;
+      if (!convo) return;
+      await markdownExporter.exportChat(convo);
+    })
+  );
+
+  // 15. Open Artifact (Plans & Walkthroughs)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.openArtifact', async (filePath: string) => {
+      if (fs.existsSync(filePath)) {
+        const doc = await vscode.workspace.openTextDocument(filePath);
+        await vscode.window.showTextDocument(doc);
+      } else {
+        vscode.window.showErrorMessage(`File not found: ${filePath}`);
+      }
+    })
+  );
+
+  // 16. Fast Search (Titles & Prompts)
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.searchChats', async () => {
       const chats = treeProvider.getChats();
@@ -270,12 +354,60 @@ export function registerCommands(
         title: 'Search All Conversations',
         matchOnDescription: true,
         matchOnDetail: true,
-        placeHolder: 'Type keyword to search across all chats, prompts, notes and folders...'
+        placeHolder: 'Type keyword to search across titles, prompts, and notes...'
       });
 
       if (selected) {
         vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chat.id);
       }
+    })
+  );
+
+  // 17. Deep Search (Full-Text in Transcripts)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('antigravityChatOrganizer.deepSearch', async () => {
+      const query = await vscode.window.showInputBox({
+        title: 'Deep Full-Text Search in All Transcripts',
+        prompt: 'Enter code snippet, error message, or keyword to search inside all historical transcripts:',
+        placeHolder: 'e.g. SQLite error, Dockerfile, pip install, git commit'
+      });
+
+      if (!query || query.trim().length < 2) return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Searching transcripts for "${query}"...`,
+          cancellable: false
+        },
+        async () => {
+          const chats = treeProvider.getChats();
+          const matches = await deepSearchEngine.search(query, chats);
+
+          if (matches.length === 0) {
+            vscode.window.showInformationMessage(`No matches found in any transcripts for "${query}".`);
+            return;
+          }
+
+          const items = matches.map(m => ({
+            label: `$(comment) ${m.conversation.title}`,
+            description: `Line ${m.lineNumber} (${new Date(m.conversation.lastModified).toLocaleDateString()})`,
+            detail: m.contextSnippet,
+            chatId: m.conversation.id
+          }));
+
+          const selected = await vscode.window.showQuickPick(items, {
+            title: `Found ${matches.length} matches for "${query}"`,
+            matchOnDescription: true,
+            matchOnDetail: true,
+            placeHolder: 'Select a match to jump to that conversation in Cascade'
+          });
+
+          if (selected) {
+            vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chatId);
+          }
+        }
+      );
     })
   );
 }

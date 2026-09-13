@@ -1,8 +1,8 @@
 {
   "name": "antigravity-chat-organizer",
   "displayName": "Antigravity Chat Organizer",
-  "description": "Organize, rename, pin, categorize into folders, and search agent chat conversations in Google Antigravity IDE.",
-  "version": "0.1.0",
+  "description": "Organize, rename, pin, categorize into folders, drag-and-drop, export, and search agent chat conversations in Google Antigravity IDE.",
+  "version": "0.2.0",
   "publisher": "alexandrmotologa",
   "repository": {
     "type": "git",
@@ -24,7 +24,8 @@
     "cascade",
     "gemini",
     "pins",
-    "folders"
+    "folders",
+    "export"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -45,6 +46,10 @@
         {
           "id": "antigravity.chatOrganizerView",
           "name": "Agent Conversations"
+        },
+        {
+          "id": "antigravity.artifactsView",
+          "name": "Project Plans & Artifacts"
         }
       ]
     },
@@ -56,8 +61,18 @@
       },
       {
         "command": "antigravityChatOrganizer.searchChats",
-        "title": "Search All Chats...",
+        "title": "Quick Search Titles & Prompts",
         "icon": "$(search)"
+      },
+      {
+        "command": "antigravityChatOrganizer.deepSearch",
+        "title": "Deep Full-Text Search in Transcripts...",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "antigravityChatOrganizer.toggleWorkspaceFilter",
+        "title": "Filter: Current Workspace Only",
+        "icon": "$(filter)"
       },
       {
         "command": "antigravityChatOrganizer.createFolder",
@@ -89,9 +104,19 @@
         "icon": "$(close)"
       },
       {
+        "command": "antigravityChatOrganizer.setFolderIcon",
+        "title": "Set Folder Emoji / Icon...",
+        "icon": "$(symbol-color)"
+      },
+      {
         "command": "antigravityChatOrganizer.addNote",
         "title": "Add / Edit Note...",
         "icon": "$(note)"
+      },
+      {
+        "command": "antigravityChatOrganizer.exportMarkdown",
+        "title": "Export to Markdown Document",
+        "icon": "$(export)"
       },
       {
         "command": "antigravityChatOrganizer.copyChatId",
@@ -104,6 +129,10 @@
         "icon": "$(file-text)"
       },
       {
+        "command": "antigravityChatOrganizer.openArtifact",
+        "title": "Open Artifact"
+      },
+      {
         "command": "antigravityChatOrganizer.deleteFolder",
         "title": "Delete Folder",
         "icon": "$(trash)"
@@ -112,19 +141,29 @@
     "menus": {
       "view/title": [
         {
-          "command": "antigravityChatOrganizer.searchChats",
+          "command": "antigravityChatOrganizer.toggleWorkspaceFilter",
           "when": "view == antigravity.chatOrganizerView",
           "group": "navigation@1"
         },
         {
-          "command": "antigravityChatOrganizer.createFolder",
+          "command": "antigravityChatOrganizer.deepSearch",
           "when": "view == antigravity.chatOrganizerView",
           "group": "navigation@2"
         },
         {
-          "command": "antigravityChatOrganizer.refresh",
+          "command": "antigravityChatOrganizer.searchChats",
           "when": "view == antigravity.chatOrganizerView",
           "group": "navigation@3"
+        },
+        {
+          "command": "antigravityChatOrganizer.createFolder",
+          "when": "view == antigravity.chatOrganizerView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "antigravityChatOrganizer.refresh",
+          "when": "view == antigravity.chatOrganizerView || view == antigravity.artifactsView",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -139,19 +178,24 @@
           "group": "inline@2"
         },
         {
-          "command": "antigravityChatOrganizer.moveToFolder",
+          "command": "antigravityChatOrganizer.exportMarkdown",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@1"
         },
         {
-          "command": "antigravityChatOrganizer.removeFromFolder",
+          "command": "antigravityChatOrganizer.moveToFolder",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@2"
         },
         {
-          "command": "antigravityChatOrganizer.addNote",
+          "command": "antigravityChatOrganizer.removeFromFolder",
           "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
           "group": "1_actions@3"
+        },
+        {
+          "command": "antigravityChatOrganizer.addNote",
+          "when": "view == antigravity.chatOrganizerView && viewItem == chatItem",
+          "group": "1_actions@4"
         },
         {
           "command": "antigravityChatOrganizer.copyChatId",
@@ -164,9 +208,14 @@
           "group": "2_info@2"
         },
         {
-          "command": "antigravityChatOrganizer.deleteFolder",
+          "command": "antigravityChatOrganizer.setFolderIcon",
           "when": "view == antigravity.chatOrganizerView && viewItem == folderItem",
           "group": "1_actions@1"
+        },
+        {
+          "command": "antigravityChatOrganizer.deleteFolder",
+          "when": "view == antigravity.chatOrganizerView && viewItem == folderItem",
+          "group": "1_actions@2"
         }
       ]
     }
