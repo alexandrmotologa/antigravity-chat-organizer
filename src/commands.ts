@@ -66,75 +66,26 @@ export function registerCommands(
         path.normalize(currentWorkspace).toLowerCase() !== path.normalize(convo!.workspacePath!).toLowerCase()
       );
 
-      const actions: string[] = ['🚀 Resume in Chat', '📄 View Transcript'];
+      const actions: string[] = ['📄 View Transcript'];
       if (isDifferentWorkspace) {
         actions.unshift('📁 Open Workspace');
       }
 
       const message = isDifferentWorkspace
         ? `Selected "${shortTitle}". Created in workspace: ${path.basename(convo!.workspacePath!)}.`
-        : `Selected "${shortTitle}". (Tip: In Cascade, click 🕒 Past Conversations or press Ctrl+K to load history)`;
+        : `Selected "${shortTitle}". (Tip: In Cascade, click 🕒 Past Conversations or press Ctrl+K to select history)`;
 
       const choice = await vscode.window.showInformationMessage(message, ...actions);
 
       if (choice === '📁 Open Workspace' && convo) {
         await vscode.commands.executeCommand('antigravityChatOrganizer.openWorkspace', convo);
-      } else if (choice === '🚀 Resume in Chat' && convo) {
-        await vscode.commands.executeCommand('antigravityChatOrganizer.resumeInChat', convo);
       } else if (choice === '📄 View Transcript' && convo) {
         await markdownExporter.openChat(convo);
       }
     })
   );
 
-  // 1b. Resume in Agent Chat (Injects session context directly into Cascade input)
-  context.subscriptions.push(
-    vscode.commands.registerCommand('antigravityChatOrganizer.resumeInChat', async (item?: ChatTreeItem | ConversationInfo) => {
-      let convo: ConversationInfo | undefined;
-      if (item instanceof ChatTreeItem) {
-        convo = item.conversation;
-      } else if (item && 'id' in item) {
-        convo = item;
-      }
-
-      if (!convo) {
-        vscode.window.showInformationMessage('Please select a conversation to resume.');
-        return;
-      }
-
-      // Ensure Cascade is open
-      try {
-        await vscode.commands.executeCommand('antigravity.openAgent');
-      } catch {
-        // ignore
-      }
-
-      let promptSnippet = convo.firstPrompt ? convo.firstPrompt.substring(0, 280).trim() : '';
-      if (promptSnippet) {
-        promptSnippet = promptSnippet.replace(/\r?\n/g, ' ');
-      }
-
-      let resumeText = `Resuming work from conversation "${convo.title}" (Session ID: ${convo.id}).`;
-      if (promptSnippet && promptSnippet !== '(No transcript recorded)') {
-        resumeText += `\nTopic: "${promptSnippet}"`;
-      }
-      if (convo.notes) {
-        resumeText += `\nNotes: "${convo.notes}"`;
-      }
-      resumeText += `\nPlease check our progress from this conversation and let's continue from where we left off.`;
-
-      try {
-        await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', resumeText);
-        vscode.window.setStatusBarMessage(`🚀 Context sent to Agent Chat for "${convo.title}"`, 5000);
-      } catch (err) {
-        // Fallback: copy to clipboard
-        await vscode.env.clipboard.writeText(resumeText);
-        vscode.window.showInformationMessage('Resume prompt copied to clipboard. Paste it into Cascade chat to continue.');
-      }
-    })
-  );
-
-  // 1c. Open Associated Workspace
+  // 1b. Open Associated Workspace
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.openWorkspace', async (item?: ChatTreeItem | ConversationInfo) => {
       let convo: ConversationInfo | undefined;

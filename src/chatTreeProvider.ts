@@ -16,16 +16,23 @@ export class ChatTreeItem extends vscode.TreeItem {
     type: TreeItemType,
     conversation?: ConversationInfo,
     folderName?: string,
-    categoryType?: string
+    categoryType?: string,
+    customId?: string
   ) {
     super(label, collapsibleState);
     this.conversation = conversation;
     this.folderName = folderName;
     this.categoryType = categoryType;
 
+    if (customId) {
+      this.id = customId;
+    }
+
     if (type === 'chat' && conversation) {
       this.contextValue = 'chatItem';
-      this.id = conversation.id;
+      if (!this.id) {
+        this.id = conversation.id;
+      }
       
       const dateStr = this.formatDate(conversation.lastModified);
       const scratchLabel = conversation.isScratch ? ' [Scratch]' : '';
@@ -204,7 +211,8 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
           'category',
           undefined,
           undefined,
-          'filter-banner'
+          'filter-banner',
+          'cat_filter'
         );
         filterStatusItem.iconPath = new vscode.ThemeIcon('filter');
         filterStatusItem.command = {
@@ -223,7 +231,8 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
           'category',
           undefined,
           undefined,
-          'pinned'
+          'pinned',
+          'cat_pinned'
         );
         pinnedItem.description = `(${pinnedChats.length})`;
         items.push(pinnedItem);
@@ -239,21 +248,28 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
           vscode.TreeItemCollapsibleState.Collapsed,
           'folder',
           undefined,
-          f
+          f,
+          undefined,
+          `cat_folder_${f}`
         );
         folderItem.description = `(${count})`;
         items.push(folderItem);
       }
 
-      // 3. Uncategorized / Recent Chats
-      const uncategorized = chats.filter(c => !c.folder);
+      // 3. Uncategorized / Recent Chats (exclude pinned to avoid duplicate IDs)
+      const uncategorized = pinnedChats.length > 0
+        ? chats.filter(c => !c.folder && !c.isPinned)
+        : chats.filter(c => !c.folder);
+
+      const recentLabel = pinnedChats.length > 0 ? `💬 Other / Recent Chats` : `💬 Recent / All Chats`;
       const recentItem = new ChatTreeItem(
-        `💬 Recent / All Chats`,
+        recentLabel,
         vscode.TreeItemCollapsibleState.Expanded,
         'category',
         undefined,
         undefined,
-        'recent'
+        'recent',
+        'cat_recent'
       );
       recentItem.description = `(${uncategorized.length})`;
       items.push(recentItem);
@@ -265,21 +281,25 @@ export class ChatTreeProvider implements vscode.TreeDataProvider<ChatTreeItem> {
     if (element.categoryType === 'pinned') {
       return chats
         .filter(c => c.isPinned)
-        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c));
+        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c, undefined, undefined, `pin_${c.id}`));
     }
 
     // Children of a specific Folder
     if (element.folderName) {
       return chats
         .filter(c => c.folder === element.folderName)
-        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c));
+        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c, element.folderName, undefined, `folder_${element.folderName}_${c.id}`));
     }
 
     // Children of Recent / All Chats
     if (element.categoryType === 'recent') {
-      return chats
-        .filter(c => !c.folder)
-        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c));
+      const pinnedCount = chats.filter(c => c.isPinned).length;
+      const targetChats = pinnedCount > 0
+        ? chats.filter(c => !c.folder && !c.isPinned)
+        : chats.filter(c => !c.folder);
+
+      return targetChats
+        .map(c => new ChatTreeItem(c.title, vscode.TreeItemCollapsibleState.None, 'chat', c, undefined, undefined, `rec_${c.id}`));
     }
 
     return [];
