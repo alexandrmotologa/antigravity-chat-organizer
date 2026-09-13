@@ -20,7 +20,7 @@ export function registerCommands(
 
   // 1. Focus / Open Chat in Cascade
   context.subscriptions.push(
-    vscode.commands.registerCommand('antigravityChatOrganizer.focusChat', async (chatId?: string | ChatTreeItem) => {
+    vscode.commands.registerCommand('antigravityChatOrganizer.focusChat', async (chatId?: string | ChatTreeItem | ConversationInfo) => {
       let id: string | undefined;
       let convo: ConversationInfo | undefined;
 
@@ -30,6 +30,9 @@ export function registerCommands(
       } else if (chatId instanceof ChatTreeItem && chatId.conversation) {
         id = chatId.conversation.id;
         convo = chatId.conversation;
+      } else if (chatId && typeof chatId === 'object' && 'id' in chatId) {
+        id = (chatId as ConversationInfo).id;
+        convo = chatId as ConversationInfo;
       }
 
       if (!id) {
@@ -513,7 +516,7 @@ export function registerCommands(
     })
   );
 
-  // 16. Fast Search (Titles & Prompts)
+  // 16. Fast Search (Custom Names, Original Names, Prompts & Notes)
   context.subscriptions.push(
     vscode.commands.registerCommand('antigravityChatOrganizer.searchChats', async () => {
       const chats = treeProvider.getChats();
@@ -531,24 +534,44 @@ export function registerCommands(
         const folderInfo = c.folder ? ` [📁 ${c.folder}]` : '';
         const scratchInfo = c.isScratch ? ' [Scratch]' : '';
         const dateStr = new Date(c.lastModified).toLocaleDateString();
+        const hasCustomTitle = !!(c.customTitle && c.customTitle.trim() !== c.originalTitle.trim());
+
+        // In QuickPick:
+        // label: Main display title (custom if renamed, or original)
+        // description: shown in muted text right next to label (matched by search)
+        // detail: shown on second line (matched by search)
+        const origSnippet = hasCustomTitle ? `(Orig: ${c.originalTitle}) ` : '';
+
+        const detailParts: string[] = [];
+        if (hasCustomTitle) {
+          detailParts.push(`🏷️ Orig: ${c.originalTitle}`);
+        }
+        if (c.notes) {
+          detailParts.push(`📝 Note: ${c.notes}`);
+        }
+        detailParts.push(`🆔 ID: ${c.id.substring(0, 8)}`);
+        if (c.firstPrompt && c.firstPrompt !== '(No transcript recorded)') {
+          const promptClean = c.firstPrompt.replace(/\r?\n/g, ' ').trim();
+          detailParts.push(`💬 ${promptClean.substring(0, 140)}`);
+        }
 
         return {
           label: `${pinIcon}${c.title}`,
-          description: `${dateStr}${folderInfo}${scratchInfo}`,
-          detail: c.notes ? `Note: ${c.notes} | ${c.firstPrompt}` : c.firstPrompt,
+          description: `${origSnippet}${dateStr}${folderInfo}${scratchInfo}`.trim(),
+          detail: detailParts.join('  •  '),
           chat: c
         };
       });
 
       const selected = await vscode.window.showQuickPick(items, {
-        title: 'Search All Conversations',
+        title: 'Search Conversations (Custom Name, Original Name, Prompt, Notes, ID)',
         matchOnDescription: true,
         matchOnDetail: true,
-        placeHolder: 'Type keyword to search across titles, prompts, and notes...'
+        placeHolder: 'Type custom name, original name, prompt, note, or ID...'
       });
 
       if (selected) {
-        vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chat.id);
+        vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chat);
       }
     })
   );
@@ -579,12 +602,16 @@ export function registerCommands(
             return;
           }
 
-          const items = matches.map(m => ({
-            label: `$(comment) ${m.conversation.title}`,
-            description: `Line ${m.lineNumber} (${new Date(m.conversation.lastModified).toLocaleDateString()})`,
-            detail: m.contextSnippet,
-            chatId: m.conversation.id
-          }));
+          const items = matches.map(m => {
+            const hasCustom = !!(m.conversation.customTitle && m.conversation.customTitle.trim() !== m.conversation.originalTitle.trim());
+            const origPart = hasCustom ? ` [Orig: ${m.conversation.originalTitle}]` : '';
+            return {
+              label: `$(comment) ${m.conversation.title}`,
+              description: `${origPart} Line ${m.lineNumber} (${new Date(m.conversation.lastModified).toLocaleDateString()})`.trim(),
+              detail: m.contextSnippet,
+              chat: m.conversation
+            };
+          });
 
           const selected = await vscode.window.showQuickPick(items, {
             title: `Found ${matches.length} matches for "${query}"`,
@@ -594,7 +621,7 @@ export function registerCommands(
           });
 
           if (selected) {
-            vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chatId);
+            vscode.commands.executeCommand('antigravityChatOrganizer.focusChat', selected.chat);
           }
         }
       );

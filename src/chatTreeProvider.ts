@@ -37,11 +37,13 @@ export class ChatTreeItem extends vscode.TreeItem {
       const dateStr = this.formatDate(conversation.lastModified);
       const scratchLabel = conversation.isScratch ? ' [Scratch]' : '';
       const notesIndicator = conversation.notes ? ' 📝' : '';
-      this.description = `${dateStr}${scratchLabel}${notesIndicator}`;
+      const hasCustomTitle = !!(conversation.customTitle && conversation.customTitle.trim() !== conversation.originalTitle.trim());
+      const origSnippet = hasCustomTitle ? ` [Orig: ${conversation.originalTitle}]` : '';
+      this.description = `${dateStr}${origSnippet}${scratchLabel}${notesIndicator}`;
 
       const tooltipLines = [
-        `Title: ${conversation.title}`,
-        conversation.customTitle ? `Original: ${conversation.originalTitle}` : '',
+        hasCustomTitle ? `Title (Custom): ${conversation.title}` : `Title: ${conversation.title}`,
+        hasCustomTitle ? `Original Title: ${conversation.originalTitle}` : '',
         `Last Active: ${new Date(conversation.lastModified).toLocaleString()}`,
         `Messages: ${conversation.messageCount}`,
         `Workspace: ${conversation.workspacePath || 'None'}`,
