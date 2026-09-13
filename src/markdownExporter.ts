@@ -11,7 +11,7 @@ export class MarkdownExporter {
     this.brainDir = path.join(os.homedir(), '.gemini', 'antigravity-ide', 'brain');
   }
 
-  public async exportChat(convo: ConversationInfo): Promise<void> {
+  public generateMarkdown(convo: ConversationInfo): string {
     const transcriptPath = path.join(
       this.brainDir,
       convo.id,
@@ -21,14 +21,14 @@ export class MarkdownExporter {
     );
 
     const lines: string[] = [];
-    lines.push(`# ${convo.title}`);
+    lines.push(`# 💬 ${convo.title}`);
     lines.push('');
-    lines.push(`- **Conversation ID**: \`${convo.id}\``);
-    lines.push(`- **Date**: ${new Date(convo.lastModified).toLocaleString()}`);
-    lines.push(`- **Workspace**: ${convo.workspacePath || 'None / Scratch'}`);
-    if (convo.folder) lines.push(`- **Folder**: ${convo.folder}`);
-    if (convo.notes) lines.push(`- **Notes**: ${convo.notes}`);
-    lines.push(`- **Messages Count**: ${convo.messageCount}`);
+    lines.push(`> **Session ID**: \`${convo.id}\`  `);
+    lines.push(`> **Date**: ${new Date(convo.lastModified).toLocaleString()}  `);
+    lines.push(`> **Workspace**: ${convo.workspacePath || 'None / Scratch'}  `);
+    if (convo.folder) lines.push(`> **Folder**: \`${convo.folder}\`  `);
+    if (convo.notes) lines.push(`> **Notes**: *${convo.notes}*  `);
+    lines.push(`> **Total Messages**: ${convo.messageCount}  `);
     lines.push('');
     lines.push('---');
     lines.push('');
@@ -38,20 +38,20 @@ export class MarkdownExporter {
     const walkthroughPath = path.join(this.brainDir, convo.id, 'walkthrough.md');
 
     if (fs.existsSync(planPath) || fs.existsSync(walkthroughPath)) {
-      lines.push('## 📑 Linked Project Artifacts');
+      lines.push('## 📑 Project Artifacts');
       lines.push('');
       if (fs.existsSync(planPath)) {
-        lines.push(`- **Implementation Plan**: \`${planPath}\``);
+        lines.push(`- 📋 [Implementation Plan](file:///${planPath.replace(/\\/g, '/')})`);
       }
       if (fs.existsSync(walkthroughPath)) {
-        lines.push(`- **Walkthrough Summary**: \`${walkthroughPath}\``);
+        lines.push(`- ✅ [Walkthrough Summary](file:///${walkthroughPath.replace(/\\/g, '/')})`);
       }
       lines.push('');
       lines.push('---');
       lines.push('');
     }
 
-    lines.push('## 💬 Dialogue Transcript');
+    lines.push('## 🗨️ Conversation Dialogue');
     lines.push('');
 
     if (fs.existsSync(transcriptPath)) {
@@ -77,6 +77,8 @@ export class MarkdownExporter {
               lines.push('');
               lines.push(cleanContent);
               lines.push('');
+              lines.push('---');
+              lines.push('');
               turnIndex++;
             } else if (type === 'PLANNER_RESPONSE' || data.source === 'MODEL') {
               if (content.trim()) {
@@ -84,10 +86,12 @@ export class MarkdownExporter {
                 lines.push('');
                 lines.push(content.trim());
                 lines.push('');
+                lines.push('---');
+                lines.push('');
               }
             }
           } catch {
-            // Ignore corrupted line
+            // Ignore parse errors
           }
         }
       } catch (err) {
@@ -97,32 +101,45 @@ export class MarkdownExporter {
       lines.push('> ℹ️ No local transcript file was found for this session.');
     }
 
-    const markdownContent = lines.join('\n');
+    return lines.join('\n');
+  }
 
-    // Open in a new untitled editor document
+  // Opens the chat transcript immediately in an editor tab (no prompts)
+  public async openChat(convo: ConversationInfo): Promise<void> {
+    const content = this.generateMarkdown(convo);
     const doc = await vscode.workspace.openTextDocument({
-      content: markdownContent,
+      content,
       language: 'markdown'
     });
 
-    await vscode.window.showTextDocument(doc, { preview: false });
+    await vscode.window.showTextDocument(doc, {
+      preview: true,
+      viewColumn: vscode.ViewColumn.One
+    });
+  }
 
-    // Also ask if user wants to save to a specific file
-    const action = await vscode.window.showInformationMessage(
-      `Exported "${convo.title}" to Markdown editor tab.`,
-      'Save to File...'
-    );
+  // Explicit export action (prompts user to save to file)
+  public async exportChat(convo: ConversationInfo): Promise<void> {
+    const content = this.generateMarkdown(convo);
+    const doc = await vscode.workspace.openTextDocument({
+      content,
+      language: 'markdown'
+    });
 
-    if (action === 'Save to File...') {
-      const sanitizedName = convo.title.replace(/[/\\?%*:|"<>]/g, '-').substring(0, 40);
-      const uri = await vscode.window.showSaveDialog({
-        defaultUri: vscode.Uri.file(path.join(os.homedir(), 'Desktop', `${sanitizedName}.md`)),
-        filters: { 'Markdown': ['md'] }
-      });
-      if (uri) {
-        fs.writeFileSync(uri.fsPath, markdownContent, 'utf-8');
-        vscode.window.showInformationMessage(`Saved Markdown to: ${uri.fsPath}`);
-      }
+    await vscode.window.showTextDocument(doc, {
+      preview: false,
+      viewColumn: vscode.ViewColumn.One
+    });
+
+    const sanitizedName = convo.title.replace(/[/\\?%*:|"<>]/g, '-').substring(0, 40);
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(os.homedir(), 'Desktop', `${sanitizedName}.md`)),
+      filters: { 'Markdown': ['md'] }
+    });
+
+    if (uri) {
+      fs.writeFileSync(uri.fsPath, content, 'utf-8');
+      vscode.window.showInformationMessage(`Saved Markdown to: ${uri.fsPath}`);
     }
   }
 }

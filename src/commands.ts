@@ -40,7 +40,16 @@ export function registerCommands(
       // Copy ID to clipboard so it's always ready to paste or use
       await vscode.env.clipboard.writeText(id);
 
-      // Open Cascade chat panel
+      // Immediately open formatted dialogue transcript in editor tab
+      if (convo) {
+        try {
+          await markdownExporter.openChat(convo);
+        } catch (err) {
+          console.error('[ChatOrganizer] Error opening chat transcript:', err);
+        }
+      }
+
+      // Open Cascade chat panel in the sidebar
       try {
         await vscode.commands.executeCommand('antigravity.openChatView');
       } catch {
@@ -55,28 +64,11 @@ export function registerCommands(
       try {
         await vscode.commands.executeCommand('workbench.action.smartFocusConversation', id);
       } catch {
-        // Expected in Antigravity IDE (VS Code) where this command is not registered
+        // Ignored
       }
 
       const shortTitle = convo ? convo.title : id.substring(0, 8);
-      vscode.window.setStatusBarMessage(`Chat Organizer: "${shortTitle}" selected (ID copied)`, 5000);
-
-      // Give quick actions to open picker or view formatted transcript
-      const choice = await vscode.window.showInformationMessage(
-        `Selected "${shortTitle}". (Conversation ID copied to clipboard)`,
-        'Open Conversation Switcher',
-        'View Full Transcript'
-      );
-
-      if (choice === 'Open Conversation Switcher') {
-        try {
-          await vscode.commands.executeCommand('conversationPicker.showConversationPicker');
-        } catch (e) {
-          vscode.window.showWarningMessage('Could not open conversation picker.');
-        }
-      } else if (choice === 'View Full Transcript' && convo) {
-        await markdownExporter.exportChat(convo);
-      }
+      vscode.window.setStatusBarMessage(`Chat Organizer: "${shortTitle}" opened (ID copied)`, 4000);
     })
   );
 
